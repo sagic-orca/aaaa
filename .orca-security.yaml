@@ -1,0 +1,3 @@
+secret_detection:
+  excluded_paths:
+    - e2e/config/**
