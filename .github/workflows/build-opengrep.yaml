@@ -147,16 +147,9 @@ jobs:
             echo '#' >> .semgrepignore
             echo '# Some parts of .gitignore syntax are not supported, and patterns' >> .semgrepignore
             echo '# using this syntax will be dropped from the ignore list:' >> .semgrepignore
-            echo '# - Explicit \"include syntax\", e.g. \"!kept/\".' >> .semgrepignore
-            echo '# - Multi-character expansion syntax, e.g. \"*.py[cod]\"' >> .semgrepignore
-            echo '# To include ignore patterns from another file, start a line' >> .semgrepignore
-            echo '# with \":include\", followed by the path of the file. E.g.' >> .semgrepignore
-            echo '# \":include path/to/other/ignore/file\".' >> .semgrepignore
             echo '# UPDATE: this will not be be needed in osemgrep which supports' >> .semgrepignore
             echo '# all of the .gitignore syntax (!kept/, *.py[cod])' >> .semgrepignore
             echo '#' >> .semgrepignore
-            echo '# To ignore a file with a literal \":\" character, escape it with' >> .semgrepignore
-            echo '# a backslash, e.g. \"\\:foo\".' >> .semgrepignore
             echo '' >> .semgrepignore
             echo '# Test data' >> .semgrepignore
             echo '/tests' >> .semgrepignore
