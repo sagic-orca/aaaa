@@ -50,12 +50,6 @@ jobs:
     runs-on: ${{ matrix.arch == 'x86_64' && 'ubuntu-latest' || 'ubuntu-24.04-arm' }}
     needs: prepare
     
-    container:
-      # Use a matrix strategy to select the correct container image.
-      image: ${{ matrix.os_type == 'manylinux' && 
-                 (matrix.arch == 'x86_64' && 'quay.io/pypa/manylinux_2_28_x86_64' || 'quay.io/pypa/manylinux_2_28_aarch64') ||
-                 (matrix.arch == 'x86_64' && 'quay.io/pypa/musllinux_1_2_x86_64' || 'quay.io/pypa/musllinux_1_2_aarch64') }}
-    
     strategy:
       # The build matrix defines all combinations to be run.
       matrix:
@@ -64,79 +58,73 @@ jobs:
 
     steps:
       - name: Download source artifact
-        # This action now runs on the host runner to avoid the container limitation.
-        # This step must be outside the `container` block.
+        # This action must run on the host runner
         uses: actions/download-artifact@v4
         with:
           name: opengrep-source
           path: .
           
-      - name: Install dependencies (manylinux)
-        # This command runs only for manylinux builds inside the container.
-        if: matrix.os_type == 'manylinux'
+      - name: Run in ${{ matrix.os_type }}-${{ matrix.arch }} container
+        # Run all container-related commands inside a single block
         run: |
-          yum update -y
-          yum install -y jq zip
+          CONTAINER_IMAGE="${{ matrix.os_type == 'manylinux' && 
+                             (matrix.arch == 'x86_64' && 'quay.io/pypa/manylinux_2_28_x86_64' || 'quay.io/pypa/manylinux_2_28_aarch64') ||
+                             (matrix.arch == 'x86_64' && 'quay.io/pypa/musllinux_1_2_x86_64' || 'quay.io/pypa/musllinux_1_2_aarch64') }}"
 
-      - name: Install dependencies (musllinux)
-        # This command runs only for musllinux builds inside the container.
-        if: matrix.os_type == 'musllinux'
-        run: |
-          apk update
-          apk add jq zip
+          # Use docker to run commands inside the correct container
+          docker run --rm -v "$(pwd):/github/workspace" -w /github/workspace "$CONTAINER_IMAGE" sh -c "
+            # Install dependencies
+            if [ \"${{ matrix.os_type }}\" = \"manylinux\" ]; then
+              yum update -y
+              yum install -y jq zip
+            elif [ \"${{ matrix.os_type }}\" = \"musllinux\" ]; then
+              apk update
+              apk add jq zip
+            fi
 
-      - name: Set core arch based on matrix.arch
-        # This also runs inside the container.
-        env:
-          ARCH: ${{ matrix.arch }}
-        run: |
-          if [ "$ARCH" = "x86_64" ]; then
-            echo "CORE_ARCH=x86" >> $GITHUB_ENV
-          else
-            echo "CORE_ARCH=aarch64" >> $GITHUB_ENV
-          fi
+            # Set core arch
+            if [ \"${{ matrix.arch }}\" = \"x86_64\" ]; then
+              CORE_ARCH=x86
+            else
+              CORE_ARCH=aarch64
+            fi
 
-      - name: Download release tarball
-        run: |
-          tag="${{ needs.prepare.outputs.tag }}"
-          url="https://github.com/opengrep/opengrep/releases/download/${tag}/opengrep-core_linux_${CORE_ARCH}.tar.gz"
-          echo "Downloading $url"
-          curl -L "$url" -o "opengrep-core_linux_${CORE_ARCH}.tar.gz"
+            # Download release tarball
+            tag=\"${{ needs.prepare.outputs.tag }}\"
+            url=\"https://github.com/opengrep/opengrep/releases/download/${tag}/opengrep-core_linux_${CORE_ARCH}.tar.gz\"
+            echo \"Downloading \$url\"
+            curl -L \"\$url\" -o \"opengrep-core_linux_${CORE_ARCH}.tar.gz\"
 
-      - name: Extract tarball
-        run: |
-          tar -xzf "opengrep-core_linux_${CORE_ARCH}.tar.gz"
-          ls -lah
+            # Extract tarball
+            tar -xzf \"opengrep-core_linux_${CORE_ARCH}.tar.gz\"
+            ls -lah
 
-      - name: Install Python and pip
-        run: |
-          if [ "${{ matrix.os_type }}" = "manylinux" ]; then
-            yum install -y python3-pip python3.9
-            alternatives --remove-all python3
-            alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1
-            alternatives --auto python3
-          elif [ "${{ matrix.os_type }}" = "musllinux" ]; then
-            apk add python3-pip
-          fi
+            # Install Python and pip
+            if [ \"${{ matrix.os_type }}\" = \"manylinux\" ]; then
+              yum install -y python3-pip python3.9
+              alternatives --remove-all python3
+              alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1
+              alternatives --auto python3
+            elif [ \"${{ matrix.os_type }}\" = \"musllinux\" ]; then
+              apk add python3-pip
+            fi
 
-      - name: move opengrep-core to bin directory
-        run: |
-          mv opengrep-core cli/src/semgrep/bin
-          ./scripts/build-wheels.sh
+            # Move opengrep-core to bin directory
+            mv opengrep-core cli/src/semgrep/bin
+            ./scripts/build-wheels.sh
 
-      - name: Test package
-        run: |
-          # Use a consistent way to run pip, like `python3 -m pip`
-          if [ "${{ matrix.os_type }}" = "manylinux" ]; then
-            /opt/python/cp39-cp39/bin/pip install --force-reinstall cli/dist/*.whl
-            export PATH=/opt/python/cp39-cp39/bin:$PATH
-          elif [ "${{ matrix.os_type }}" = "musllinux" ]; then
-            python3 -m pip install --force-reinstall cli/dist/*.whl
-            export PATH=/usr/bin:$PATH
-          fi
-          
-          echo '1 == 1' | opengrep -l python -e '$X == $X'
-          opengrep --version
+            # Test package
+            if [ \"${{ matrix.os_type }}\" = \"manylinux\" ]; then
+              /opt/python/cp39-cp39/bin/pip install --force-reinstall cli/dist/*.whl
+              export PATH=/opt/python/cp39-cp39/bin:\$PATH
+            elif [ \"${{ matrix.os_type }}\" = \"musllinux\" ]; then
+              python3 -m pip install --force-reinstall cli/dist/*.whl
+              export PATH=/usr/bin:\$PATH
+            fi
+            
+            echo '1 == 1' | opengrep -l python -e '\$X == \$X'
+            opengrep --version
+          "
 
       - uses: actions/upload-artifact@v4
         with:
