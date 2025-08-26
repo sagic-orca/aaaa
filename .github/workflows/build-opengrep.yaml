@@ -124,6 +124,12 @@ jobs:
             find . -type f -name 'opengrep-core' -exec mv {} cli/src/semgrep/bin/ \;
             ls -la cli/src/semgrep/bin/
 
+            # Copy the .semgrepignore file to the expected location
+            echo \"Copying .semgrepignore to the expected location\"
+            mkdir -p cli/src/semgrep/templates
+            cp .semgrepignore cli/src/semgrep/templates/.semgrepignore
+            ls -la cli/src/semgrep/templates/
+
             # Execute build commands directly from the build script
             echo \"Building wheel package\"
             if [ \"\$OS_TYPE\" = \"manylinux\" ]; then
