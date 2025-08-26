@@ -218,4 +218,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.os_type }}-${{ matrix.arch }}-wheels
-          path: dist/*.whl
+          path: cli/dist/*.whl
