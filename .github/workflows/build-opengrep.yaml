@@ -99,12 +99,12 @@ jobs:
             fi
 
             # Download release tarball
-            url=\"https://github.com/opengrep/opengrep/releases/download/\$TAG/opengrep_core-linux_\$CORE_ARCH.tar.gz\"
+            url=\"https://github.com/opengrep/opengrep/releases/download/\$TAG/opengrep-core_linux_\$CORE_ARCH.tar.gz\"
             echo \"Downloading \$url\"
-            curl -L -f \"\$url\" -o \"opengrep_core-linux_\$CORE_ARCH.tar.gz\"
+            curl -L -f \"\$url\" -o \"opengrep-core_linux_\$CORE_ARCH.tar.gz\"
 
             # Extract tarball
-            tar -xzf \"opengrep_core-linux_\$CORE_ARCH.tar.gz\"
+            tar -xzf \"opengrep-core_linux_\$CORE_ARCH.tar.gz\"
             ls -lah
 
             # Install Python and pip
