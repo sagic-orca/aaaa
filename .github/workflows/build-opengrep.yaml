@@ -93,11 +93,13 @@ jobs:
             if [ \"\$OS_TYPE\" = \"manylinux\" ]; then
               yum update -y
               yum install -y jq zip python3-pip python3.9
-              /opt/python/cp39-cp39/bin/pip install --force-reinstall setuptools wheel twine
+              /opt/python/cp39-cp39/bin/pip install --upgrade pip
+              /opt/python/cp39-cp39/bin/pip install --upgrade setuptools wheel twine
             elif [ \"\$OS_TYPE\" = \"musllinux\" ]; then
               apk update
               apk add jq zip python3-dev py3-pip
-              python3 -m pip install --force-reinstall --break-system-packages setuptools wheel twine
+              python3 -m pip install --upgrade pip --break-system-packages
+              python3 -m pip install --upgrade setuptools wheel twine --break-system-packages
             fi
 
             # Download release tarball
@@ -114,15 +116,34 @@ jobs:
             
             # Find and move opengrep-core to bin directory and fix permissions
             find . -type f -name 'opengrep-core' -exec mv {} cli/src/semgrep/bin/ \;
-            chmod +x ./scripts/build-wheels.sh
-            ./scripts/build-wheels.sh
+
+            # Execute build commands directly from the build script
+            if [ \"\$OS_TYPE\" = \"manylinux\" ]; then
+              cd cli && /opt/python/cp39-cp39/bin/python3 setup.py sdist bdist_wheel
+            elif [ \"\$OS_TYPE\" = \"musllinux\" ]; then
+              cd cli && python3 setup.py sdist bdist_wheel
+            fi
+            
+            # Twine check
+            if [ \"\$OS_TYPE\" = \"manylinux\" ]; then
+              /opt/python/cp39-cp39/bin/twine check dist/*.whl
+            elif [ \"\$OS_TYPE\" = \"musllinux\" ]; then
+              python3 -m twine check dist/*.whl
+            fi
+
+            # Zip for artifact upload
+            if [ \"\$OS_TYPE\" = \"manylinux\" ]; then
+              zip -r dist.zip dist
+            elif [ \"\$OS_TYPE\" = \"musllinux\" ]; then
+              zip -r dist.zip dist
+            fi
 
             # Test package
             if [ \"\$OS_TYPE\" = \"manylinux\" ]; then
-              /opt/python/cp39-cp39/bin/pip install --force-reinstall cli/dist/*.whl
+              /opt/python/cp39-cp39/bin/pip install --force-reinstall dist/*.whl
               export PATH=/opt/python/cp39-cp39/bin:\$PATH
             elif [ \"\$OS_TYPE\" = \"musllinux\" ]; then
-              python3 -m pip install --force-reinstall cli/dist/*.whl
+              python3 -m pip install --force-reinstall dist/*.whl
               export PATH=/usr/bin:\$PATH
             fi
             
