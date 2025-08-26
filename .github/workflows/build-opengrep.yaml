@@ -64,67 +64,62 @@ jobs:
           name: opengrep-source
           path: .
 
-      - name: Install dependencies (manylinux) and Set core arch
-        if: matrix.os_type == 'manylinux'
-        run: |
-          CONTAINER_IMAGE="${{ matrix.arch == 'x86_64' && 'quay.io/pypa/manylinux_2_28_x86_64' || 'quay.io/pypa/manylinux_2_28_aarch64' }}"
-          docker run --rm -v "$(pwd):/github/workspace" -w /github/workspace "$CONTAINER_IMAGE" sh -c "
-            set -e
-            yum update -y
-            yum install -y jq zip
-            if [ \"${{ matrix.arch }}\" = \"x86_64\" ]; then
-              echo \"CORE_ARCH=x86\" >> \$GITHUB_ENV
-            else
-              echo \"CORE_ARCH=aarch64\" >> \$GITHUB_ENV
-            fi
-            
-            /opt/python/cp39-cp39/bin/pip install --force-reinstall setuptools wheel twine
-          "
-
-      - name: Install dependencies (musllinux) and Set core arch
-        if: matrix.os_type == 'musllinux'
-        run: |
-          CONTAINER_IMAGE="${{ matrix.arch == 'x86_64' && 'quay.io/pypa/musllinux_1_2_x86_64' || 'quay.io/pypa/musllinux_1_2_aarch64' }}"
-          docker run --rm -v "$(pwd):/github/workspace" -w /github/workspace "$CONTAINER_IMAGE" sh -c "
-            set -e
-            apk update
-            apk add jq zip
-            if [ \"${{ matrix.arch }}\" = \"x86_64\" ]; then
-              echo \"CORE_ARCH=x86\" >> \$GITHUB_ENV
-            else
-              echo \"CORE_ARCH=aarch64\" >> \$GITHUB_ENV
-            fi
-
-            apk add python3-dev
-            python3 -m pip install --force-reinstall setuptools wheel twine
-          "
-
-      - name: Download release tarball and run build
+      - name: Run in ${{ matrix.os_type }}-${{ matrix.arch }} container
+        # Run all container-related commands inside a single block
         run: |
           CONTAINER_IMAGE="${{ matrix.os_type == 'manylinux' && 
                              (matrix.arch == 'x86_64' && 'quay.io/pypa/manylinux_2_28_x86_64' || 'quay.io/pypa/manylinux_2_28_aarch64') ||
                              (matrix.arch == 'x86_64' && 'quay.io/pypa/musllinux_1_2_x86_64' || 'quay.io/pypa/musllinux_1_2_aarch64') }}"
 
+          # Use a heredoc to create a shell script and pipe it to docker run.
           docker run --rm -v "$(pwd):/github/workspace" -w /github/workspace "$CONTAINER_IMAGE" sh -c "
             set -e
+
+            # Install dependencies
+            if [ \"${{ matrix.os_type }}\" = \"manylinux\" ]; then
+              yum update -y
+              yum install -y jq zip
+            elif [ \"${{ matrix.os_type }}\" = \"musllinux\" ]; then
+              apk update
+              apk add jq zip
+            fi
+
+            # Set core arch
+            if [ \"${{ matrix.arch }}\" = \"x86_64\" ]; then
+              CORE_ARCH=x86
+            else
+              CORE_ARCH=aarch64
+            fi
+
+            # Download release tarball
             tag=\"${{ needs.prepare.outputs.tag }}\"
             url=\"https://github.com/opengrep/opengrep/releases/download/${tag}/opengrep-core_linux_${CORE_ARCH}.tar.gz\"
             echo \"Downloading \$url\"
             curl -L -f \"\$url\" -o \"opengrep-core_linux_${CORE_ARCH}.tar.gz\"
+
+            # Extract tarball
             tar -xzf \"opengrep-core_linux_${CORE_ARCH}.tar.gz\"
+            ls -lah
+
+            # Install Python and pip
+            if [ \"${{ matrix.os_type }}\" = \"manylinux\" ]; then
+              # manylinux comes with pre-installed Pythons in /opt/python
+              /opt/python/cp39-cp39/bin/pip install --force-reinstall setuptools wheel twine
+            elif [ \"${{ matrix.os_type }}\" = \"musllinux\" ]; then
+              # musllinux requires installing python and pip
+              apk add python3-dev
+              python3 -m pip install --force-reinstall setuptools wheel twine
+            fi
+
+            # Create the necessary directory before moving the file
+            mkdir -p cli/src/semgrep/bin
+            
+            # move opengrep-core to bin directory and fix permissions
             mv opengrep-core cli/src/semgrep/bin
             chmod +x ./scripts/build-wheels.sh
             ./scripts/build-wheels.sh
-          "
-          
-      - name: Test package and upload artifact
-        run: |
-          CONTAINER_IMAGE="${{ matrix.os_type == 'manylinux' && 
-                             (matrix.arch == 'x86_64' && 'quay.io/pypa/manylinux_2_28_x86_64' || 'quay.io/pypa/manylinux_2_28_aarch64') ||
-                             (matrix.arch == 'x86_64' && 'quay.io/pypa/musllinux_1_2_x86_64' || 'quay.io/pypa/musllinux_1_2_aarch64') }}"
 
-          docker run --rm -v "$(pwd):/github/workspace" -w /github/workspace "$CONTAINER_IMAGE" sh -c "
-            set -e
+            # Test package
             if [ \"${{ matrix.os_type }}\" = \"manylinux\" ]; then
               /opt/python/cp39-cp39/bin/pip install --force-reinstall cli/dist/*.whl
               export PATH=/opt/python/cp39-cp39/bin:\$PATH
@@ -136,6 +131,7 @@ jobs:
             echo '1 == 1' | opengrep -l python -e '\$X == \$X'
             opengrep --version
           "
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.os_type }}-${{ matrix.arch }}-wheels
