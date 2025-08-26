@@ -66,47 +66,52 @@ jobs:
           path: .
 
       - name: Run in ${{ matrix.os_type }}-${{ matrix.arch }} container
-        # Run all container-related commands inside a single block
+        # Use docker run to execute a shell command inside the container.
         run: |
           CONTAINER_IMAGE="${{ matrix.os_type == 'manylinux' && 
                              (matrix.arch == 'x86_64' && 'quay.io/pypa/manylinux_2_28_x86_64' || 'quay.io/pypa/manylinux_2_28_aarch64') ||
                              (matrix.arch == 'x86_64' && 'quay.io/pypa/musllinux_1_2_x86_64' || 'quay.io/pypa/musllinux_1_2_aarch64') }}"
 
-          # Use a heredoc to create a shell script and pipe it to docker run.
-          docker run --rm -v "$(pwd):/github/workspace" -w /github/workspace "$CONTAINER_IMAGE" sh -c "
+          # Set CORE_ARCH variable based on the matrix architecture
+          if [ "${{ matrix.arch }}" = "x86_64" ]; then
+            CORE_ARCH="x86"
+          else
+            CORE_ARCH="aarch64"
+          fi
+
+          # Use a heredoc to create a shell script and pipe it to docker run, passing variables with -e
+          docker run --rm \
+            -v "$(pwd):/github/workspace" \
+            -w /github/workspace \
+            -e "TAG=${{ needs.prepare.outputs.tag }}" \
+            -e "CORE_ARCH=${CORE_ARCH}" \
+            -e "OS_TYPE=${{ matrix.os_type }}" \
+            "$CONTAINER_IMAGE" sh -c "
             set -e
 
             # Install dependencies
-            if [ \"${{ matrix.os_type }}\" = \"manylinux\" ]; then
+            if [ \"\$OS_TYPE\" = \"manylinux\" ]; then
               yum update -y
               yum install -y jq zip
-            elif [ \"${{ matrix.os_type }}\" = \"musllinux\" ]; then
+            elif [ \"\$OS_TYPE\" = \"musllinux\" ]; then
               apk update
               apk add jq zip
             fi
 
-            # Set core arch
-            if [ \"${{ matrix.arch }}\" = \"x86_64\" ]; then
-              CORE_ARCH=x86
-            else
-              CORE_ARCH=aarch64
-            fi
-
             # Download release tarball
-            tag=\"${{ needs.prepare.outputs.tag }}\"
-            url=\"https://github.com/opengrep/opengrep/releases/download/${tag}/opengrep_core-linux_${CORE_ARCH}.tar.gz\"
+            url=\"https://github.com/opengrep/opengrep/releases/download/\$TAG/opengrep_core-linux_\$CORE_ARCH.tar.gz\"
             echo \"Downloading \$url\"
-            curl -L -f \"\$url\" -o \"opengrep_core-linux_${CORE_ARCH}.tar.gz\"
+            curl -L -f \"\$url\" -o \"opengrep_core-linux_\$CORE_ARCH.tar.gz\"
 
             # Extract tarball
-            tar -xzf \"opengrep_core-linux_${CORE_ARCH}.tar.gz\"
+            tar -xzf \"opengrep_core-linux_\$CORE_ARCH.tar.gz\"
             ls -lah
 
             # Install Python and pip
-            if [ \"${{ matrix.os_type }}\" = \"manylinux\" ]; then
+            if [ \"\$OS_TYPE\" = \"manylinux\" ]; then
               # manylinux comes with pre-installed Pythons in /opt/python
               /opt/python/cp39-cp39/bin/pip install --force-reinstall setuptools wheel twine
-            elif [ \"${{ matrix.os_type }}\" = \"musllinux\" ]; then
+            elif [ \"\$OS_TYPE\" = \"musllinux\" ]; then
               # musllinux requires installing python and pip
               apk add python3-dev
               python3 -m pip install --force-reinstall setuptools wheel twine
@@ -121,10 +126,10 @@ jobs:
             ./scripts/build-wheels.sh
 
             # Test package
-            if [ \"${{ matrix.os_type }}\" = \"manylinux\" ]; then
+            if [ \"\$OS_TYPE\" = \"manylinux\" ]; then
               /opt/python/cp39-cp39/bin/pip install --force-reinstall cli/dist/*.whl
               export PATH=/opt/python/cp39-cp39/bin:\$PATH
-            elif [ \"${{ matrix.os_type }}\" = \"musllinux\" ]; then
+            elif [ \"\$OS_TYPE\" = \"musllinux\" ]; then
               python3 -m pip install --force-reinstall cli/dist/*.whl
               export PATH=/usr/bin:\$PATH
             fi
