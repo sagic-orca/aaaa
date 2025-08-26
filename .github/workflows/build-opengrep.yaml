@@ -185,6 +185,9 @@ jobs:
               cd cli && python3 setup.py sdist bdist_wheel
             fi
             
+            # List dist wheel
+            ls -la dist/*.whl
+
             # Twine check
             echo \"Running twine check\"
             if [ \"\$OS_TYPE\" = \"manylinux\" ]; then
@@ -219,4 +222,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.os_type }}-${{ matrix.arch }}-wheels
-          path: cli/dist/*.whl
+          path: dist/*.whl
