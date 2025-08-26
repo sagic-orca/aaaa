@@ -143,7 +143,7 @@ jobs:
               /opt/python/cp39-cp39/bin/pip install --force-reinstall dist/*.whl
               export PATH=/opt/python/cp39-cp39/bin:\$PATH
             elif [ \"\$OS_TYPE\" = \"musllinux\" ]; then
-              python3 -m pip install --force-reinstall dist/*.whl
+              python3 -m pip install --force-reinstall dist/*.whl --break-system-packages
               export PATH=/usr/bin:\$PATH
             fi
             
@@ -155,3 +155,4 @@ jobs:
         with:
           name: ${{ matrix.os_type }}-${{ matrix.arch }}-wheels
           path: cli/dist.zip
+          retention-days: 1
