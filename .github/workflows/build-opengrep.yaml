@@ -177,12 +177,25 @@ jobs:
             echo \"Building wheel package\"
             if [ \"\$OS_TYPE\" = \"manylinux\" ]; then
               cd cli && /opt/python/cp39-cp39/bin/python3 setup.py sdist bdist_wheel
+              # Repair wheel with auditwheel to ensure manylinux compatibility
+              /opt/python/cp39-cp39/bin/python3 -m pip install auditwheel
+              /opt/python/cp39-cp39/bin/auditwheel repair dist/*.whl --plat manylinux_2_28_\$CORE_ARCH -w dist/
             elif [ \"\$OS_TYPE\" = \"musllinux\" ]; then
               cd cli && python3 setup.py sdist bdist_wheel
+              # Repair wheel with auditwheel to ensure musllinux compatibility
+              python3 -m pip install auditwheel --break-system-packages
+              python3 -m auditwheel repair dist/*.whl --plat musllinux_1_2_\$CORE_ARCH -w dist/
             fi
             
-            # List dist wheel
-            ls -la dist/*.whl
+            # List and verify the wheel files
+            echo \"Listing wheel files and their platform tags:\"
+            ls -la cli/dist/*.whl
+            echo \"Checking wheel platform tags:\"
+            for wheel in cli/dist/*.whl; do
+              echo \"Wheel: \$wheel\"
+              unzip -q -c \"\$wheel\" \"*/WHEEL\" 2>/dev/null | head -20 || echo \"Could not read WHEEL metadata\"
+              echo \"---\"
+            done
 
             # Twine check
             echo \"Running twine check\"
