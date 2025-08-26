@@ -90,24 +90,29 @@ jobs:
             set -e
 
             # Install dependencies
+            echo \"Installing dependencies for \$OS_TYPE on \$CORE_ARCH\"
             if [ \"\$OS_TYPE\" = \"manylinux\" ]; then
               yum update -y
               yum install -y jq zip python3-pip python3.9
+              echo \"Upgrading pip for manylinux\"
               /opt/python/cp39-cp39/bin/pip install --upgrade pip
               /opt/python/cp39-cp39/bin/pip install --upgrade setuptools wheel twine
             elif [ \"\$OS_TYPE\" = \"musllinux\" ]; then
               apk update
               apk add jq zip python3-dev py3-pip
+              echo \"Upgrading pip for musllinux with --break-system-packages\"
               python3 -m pip install --upgrade pip --break-system-packages
               python3 -m pip install --upgrade setuptools wheel twine --break-system-packages
             fi
 
             # Download release tarball
+            echo \"Downloading opengrep-core release\"
             url=\"https://github.com/opengrep/opengrep/releases/download/\$TAG/opengrep-core_linux_\$CORE_ARCH.tar.gz\"
-            echo \"Downloading \$url\"
+            echo \"Downloading from URL: \$url\"
             curl -L -f \"\$url\" -o \"opengrep-core_linux_\$CORE_ARCH.tar.gz\"
 
             # Extract tarball
+            echo \"Extracting tarball\"
             tar -xzf \"opengrep-core_linux_\$CORE_ARCH.tar.gz\"
             ls -lah
 
@@ -115,9 +120,12 @@ jobs:
             mkdir -p cli/src/semgrep/bin
             
             # Find and move opengrep-core to bin directory and fix permissions
+            echo \"Moving opengrep-core to cli/src/semgrep/bin\"
             find . -type f -name 'opengrep-core' -exec mv {} cli/src/semgrep/bin/ \;
+            ls -la cli/src/semgrep/bin/
 
             # Execute build commands directly from the build script
+            echo \"Building wheel package\"
             if [ \"\$OS_TYPE\" = \"manylinux\" ]; then
               cd cli && /opt/python/cp39-cp39/bin/python3 setup.py sdist bdist_wheel
             elif [ \"\$OS_TYPE\" = \"musllinux\" ]; then
@@ -125,6 +133,7 @@ jobs:
             fi
             
             # Twine check
+            echo \"Running twine check\"
             if [ \"\$OS_TYPE\" = \"manylinux\" ]; then
               /opt/python/cp39-cp39/bin/twine check dist/*.whl
             elif [ \"\$OS_TYPE\" = \"musllinux\" ]; then
@@ -132,6 +141,7 @@ jobs:
             fi
 
             # Zip for artifact upload
+            echo \"Zipping artifacts\"
             if [ \"\$OS_TYPE\" = \"manylinux\" ]; then
               zip -r dist.zip dist
             elif [ \"\$OS_TYPE\" = \"musllinux\" ]; then
@@ -139,6 +149,7 @@ jobs:
             fi
 
             # Test package
+            echo \"Testing package installation\"
             if [ \"\$OS_TYPE\" = \"manylinux\" ]; then
               /opt/python/cp39-cp39/bin/pip install --force-reinstall dist/*.whl
               export PATH=/opt/python/cp39-cp39/bin:\$PATH
@@ -147,6 +158,7 @@ jobs:
               export PATH=/usr/bin:\$PATH
             fi
             
+            echo 'Running opengrep --version'
             echo '1 == 1' | opengrep -l python -e '\$X == \$X'
             opengrep --version
           "
@@ -155,4 +167,3 @@ jobs:
         with:
           name: ${{ matrix.os_type }}-${{ matrix.arch }}-wheels
           path: cli/dist.zip
-          retention-days: 1
