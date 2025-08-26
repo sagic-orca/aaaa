@@ -61,18 +61,6 @@ jobs:
         arch: ["x86_64", "aarch64"]
 
     steps:
-      - name: Download source artifact
-        # This action now runs inside the container and downloads the prepared source.
-        uses: actions/download-artifact@v4
-        with:
-          name: opengrep-source
-          path: .
-
-      - name: Show current environment
-        run: |
-          echo "Building for OS: ${{ matrix.os_type }}"
-          echo "Building for Arch: ${{ matrix.arch }}"
-
       - name: Install dependencies (jq and zip)
         # Use conditional logic to handle different package managers.
         run: |
@@ -83,6 +71,23 @@ jobs:
             apk update
             apk add jq zip
           fi
+          
+      - name: Download source artifact via curl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get the run ID from the job context
+          run_id=${{ github.run_id }}
+          # Get the artifact ID for 'opengrep-source'
+          artifact_id=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/opengrep/opengrep/actions/runs/$run_id/artifacts" | jq '.artifacts[] | select(.name=="opengrep-source") | .id')
+          # Download the artifact using the ID
+          curl -sL -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/opengrep/opengrep/actions/artifacts/$artifact_id/zip" -o opengrep-source.zip
+          unzip opengrep-source.zip -d .
+
+      - name: Show current environment
+        run: |
+          echo "Building for OS: ${{ matrix.os_type }}"
+          echo "Building for Arch: ${{ matrix.arch }}"
 
       - name: Set core arch based on matrix.arch
         env:
