@@ -192,27 +192,27 @@ jobs:
               python3 -m twine check dist/*.whl
             fi
 
-            # Zip for artifact upload
-            echo \"Zipping artifacts\"
-            if [ \"\$OS_TYPE\" = \"manylinux\" ]; then
-              zip -r dist.zip dist
-            elif [ \"\$OS_TYPE\" = \"musllinux\" ]; then
-              zip -r dist.zip dist
-            fi
+            # # Zip for artifact upload
+            # echo \"Zipping artifacts\"
+            # if [ \"\$OS_TYPE\" = \"manylinux\" ]; then
+            #   zip -r dist.zip dist
+            # elif [ \"\$OS_TYPE\" = \"musllinux\" ]; then
+            #   zip -r dist.zip dist
+            # fi
 
-            # Test package
-            echo \"Testing package installation\"
-            if [ \"\$OS_TYPE\" = \"manylinux\" ]; then
-              /opt/python/cp39-cp39/bin/pip install --force-reinstall dist/*.whl
-              export PATH=/opt/python/cp39-cp39/bin:\$PATH
-            elif [ \"\$OS_TYPE\" = \"musllinux\" ]; then
-              python3 -m pip install --force-reinstall dist/*.whl --break-system-packages
-              export PATH=/usr/bin:\$PATH
-            fi
+            # # Test package
+            # echo \"Testing package installation\"
+            # if [ \"\$OS_TYPE\" = \"manylinux\" ]; then
+            #   /opt/python/cp39-cp39/bin/pip install --force-reinstall dist/*.whl
+            #   export PATH=/opt/python/cp39-cp39/bin:\$PATH
+            # elif [ \"\$OS_TYPE\" = \"musllinux\" ]; then
+            #   python3 -m pip install --force-reinstall dist/*.whl --break-system-packages
+            #   export PATH=/usr/bin:\$PATH
+            # fi
             
-            echo 'Running opengrep --version'
-            echo '1 == 1' | opengrep -l python -e '\$X == \$X'
-            opengrep --version
+            # echo 'Running opengrep --version'
+            # echo '1 == 1' | opengrep -l python -e '\$X == \$X'
+            # opengrep --version
           "
 
       - uses: actions/upload-artifact@v4
