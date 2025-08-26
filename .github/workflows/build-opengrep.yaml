@@ -46,9 +46,15 @@ jobs:
           
   build-and-test-wheels:
     name: Build & Test ${{ matrix.os_type }}-${{ matrix.arch }}
-    # This step runs on the host to ensure compatibility with JavaScript-based actions.
+    # This job runs on the host to ensure compatibility with JavaScript-based actions.
     runs-on: ${{ matrix.arch == 'x86_64' && 'ubuntu-latest' || 'ubuntu-24.04-arm' }}
     needs: prepare
+    
+    container:
+      # Use a matrix strategy to select the correct container image.
+      image: ${{ matrix.os_type == 'manylinux' && 
+                 (matrix.arch == 'x86_64' && 'quay.io/pypa/manylinux_2_28_x86_64' || 'quay.io/pypa/manylinux_2_28_aarch64') ||
+                 (matrix.arch == 'x86_64' && 'quay.io/pypa/musllinux_1_2_x86_64' || 'quay.io/pypa/musllinux_1_2_aarch64') }}
     
     strategy:
       # The build matrix defines all combinations to be run.
@@ -59,21 +65,25 @@ jobs:
     steps:
       - name: Download source artifact
         # This action now runs on the host runner to avoid the container limitation.
+        # This step must be outside the `container` block.
         uses: actions/download-artifact@v4
         with:
           name: opengrep-source
           path: .
           
-      - name: Install dependencies (jq and zip)
-        # These commands will run inside the container.
+      - name: Install dependencies (manylinux)
+        # This command runs only for manylinux builds inside the container.
+        if: matrix.os_type == 'manylinux'
         run: |
-          if [ "${{ matrix.os_type }}" = "manylinux" ]; then
-            yum update -y
-            yum install -y jq zip
-          elif [ "${{ matrix.os_type }}" = "musllinux" ]; then
-            apk update
-            apk add jq zip
-          fi
+          yum update -y
+          yum install -y jq zip
+
+      - name: Install dependencies (musllinux)
+        # This command runs only for musllinux builds inside the container.
+        if: matrix.os_type == 'musllinux'
+        run: |
+          apk update
+          apk add jq zip
 
       - name: Set core arch based on matrix.arch
         # This also runs inside the container.
