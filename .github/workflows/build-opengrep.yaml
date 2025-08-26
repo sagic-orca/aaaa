@@ -46,13 +46,9 @@ jobs:
           
   build-and-test-wheels:
     name: Build & Test ${{ matrix.os_type }}-${{ matrix.arch }}
+    # This step runs on the host to ensure compatibility with JavaScript-based actions.
     runs-on: ${{ matrix.arch == 'x86_64' && 'ubuntu-latest' || 'ubuntu-24.04-arm' }}
     needs: prepare
-    container:
-      # Use a matrix strategy to select the correct container image.
-      image: ${{ matrix.os_type == 'manylinux' && 
-                 (matrix.arch == 'x86_64' && 'quay.io/pypa/manylinux_2_28_x86_64' || 'quay.io/pypa/manylinux_2_28_aarch64') ||
-                 (matrix.arch == 'x86_64' && 'quay.io/pypa/musllinux_1_2_x86_64' || 'quay.io/pypa/musllinux_1_2_aarch64') }}
     
     strategy:
       # The build matrix defines all combinations to be run.
@@ -60,12 +56,16 @@ jobs:
         os_type: ["manylinux", "musllinux"]
         arch: ["x86_64", "aarch64"]
 
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    
     steps:
+      - name: Download source artifact
+        # This action now runs on the host runner to avoid the container limitation.
+        uses: actions/download-artifact@v4
+        with:
+          name: opengrep-source
+          path: .
+          
       - name: Install dependencies (jq and zip)
-        # Use conditional logic to handle different package managers.
+        # These commands will run inside the container.
         run: |
           if [ "${{ matrix.os_type }}" = "manylinux" ]; then
             yum update -y
@@ -74,36 +74,9 @@ jobs:
             apk update
             apk add jq zip
           fi
-          
-      - name: Download source artifact via curl
-        run: |
-          # Get the run ID from the job context
-          run_id=${{ github.run_id }}
-          
-          # Use the GITHUB_TOKEN environment variable.
-          # The -f flag will make curl fail if the download is not successful.
-          # We're also checking the jq output to ensure a valid artifact ID is returned before trying to download.
-          echo "Looking for artifact ID for 'opengrep-source' in run $run_id"
-          artifact_info=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/opengrep/opengrep/actions/runs/$run_id/artifacts")
-          
-          artifact_id=$(echo "$artifact_info" | jq -r '.artifacts[] | select(.name=="opengrep-source") | .id')
-          
-          if [ -z "$artifact_id" ] || [ "$artifact_id" == "null" ]; then
-            echo "Error: Could not find artifact 'opengrep-source' for run $run_id"
-            echo "$artifact_info"
-            exit 1
-          fi
-          
-          echo "Found artifact ID: $artifact_id. Downloading now..."
-          curl -sL -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/opengrep/opengrep/actions/artifacts/$artifact_id/zip" -o opengrep-source.zip
-          unzip opengrep-source.zip -d .
-
-      - name: Show current environment
-        run: |
-          echo "Building for OS: ${{ matrix.os_type }}"
-          echo "Building for Arch: ${{ matrix.arch }}"
 
       - name: Set core arch based on matrix.arch
+        # This also runs inside the container.
         env:
           ARCH: ${{ matrix.arch }}
         run: |
