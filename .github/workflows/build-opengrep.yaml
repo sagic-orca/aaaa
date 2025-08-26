@@ -97,7 +97,7 @@ jobs:
             elif [ \"\$OS_TYPE\" = \"musllinux\" ]; then
               apk update
               apk add jq zip python3-dev py3-pip
-              python3 -m pip install --force-reinstall setuptools wheel twine
+              python3 -m pip install --force-reinstall --break-system-packages setuptools wheel twine
             fi
 
             # Download release tarball
